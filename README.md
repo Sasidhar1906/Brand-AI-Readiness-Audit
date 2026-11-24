@@ -1,260 +1,326 @@
-# Brand AI Readiness Audit -- adobe university hackathon 2026
+# Brand AI Readiness Audit
+### Adobe University Hackathon 2026
 
-**An Agent Skill marketplace that audits any public website, read-only, for why AI
-assistants can't find, read, understand or quote the brand — and emits one
-evidence-backed report with prioritized fixes.**
+**An Agent Skill Marketplace for auditing website readiness for AI-powered discovery.**
 
-Built for the Adobe University Hackathon 2026 by a team of three — see [Team](#team).
+Brand AI Readiness Audit analyzes public websites to identify why AI assistants may struggle to discover, access, understand, retrieve, and cite their content.
 
----
-
-## What problem does this solve?
-
-A website can genuinely contain the information a user wants and still fail an AI
-assistant. The fact might be locked in an image, blocked by `robots.txt` for retrieval
-bots, contradicted elsewhere on the site, rendered only by JavaScript, or never tied to a
-clearly identified brand. "The page is indexed" does not mean "the assistant will mention
-it."
-
-This project finds those structural gaps, cites the exact evidence for each one, and
-tells the site owner what to fix first.
-
-## Key capabilities
-
-- **Nine Agent Skills, one per gate of the discovery funnel** — crawl access,
-  render/readability, structured data and entity identity, answer retrievability,
-  freshness and contradictions, on-site engagement, plus opportunities and monitoring.
-- **Evidence-or-silence.** No concrete URL and observed value, no finding. Enforced by a
-  validator, so an unevidenced finding cannot even be emitted.
-- **Read-only and recommend-only.** GET/HEAD only, `robots.txt` respected, no
-  authentication, no bot-challenge circumvention, and nothing is ever written back to the
-  audited site.
-- **Precision-engineered.** Training-only crawler blocks, valid Microdata, correctly
-  noindexed utility pages and non-English sites are *not* reported as defects.
-- **Honest coverage.** Anything that could not be checked is listed under
-  `coverage.not_assessed` — never a silent pass or fail.
-- **Zero dependencies.** Python 3.9+ standard library only. No API keys, no LLM calls.
+It generates an evidence-backed report containing identified issues, their severity, and prioritized recommendations to improve AI discoverability.
 
 ---
 
-## How it works
+## 🚀 Project Overview
 
-### The discovery funnel
+Traditional search engine indexing does not necessarily mean that AI assistants can understand or reference a website.
 
-Discovery is a funnel, not a switch. A page can pass one stage and fail the next, and a
-fix aimed at the wrong stage does nothing — so the marketplace has one detector per gate:
+Important information may be:
+- Hidden inside images or PDFs.
+- Blocked by `robots.txt` or crawler restrictions.
+- Available only through JavaScript rendering.
+- Inconsistent across different pages.
+- Missing structured data or clear brand identity.
+- Difficult for AI systems to locate and quote accurately.
 
+**Brand AI Readiness Audit** identifies these problems through nine specialized Agent Skills and generates a comprehensive technical audit report.
+
+## ✨ Key Features
+
+- **9 Specialized Agent Skills:** Each skill focuses on a specific stage of the AI discovery process.
+- **Evidence-Based Findings:** Every reported issue must include a concrete URL and observed evidence.
+- **Read-Only Auditing:** Uses GET/HEAD requests only. Never modifies the audited website.
+- **Intelligent Validation:** Avoids reporting valid configurations, non-English websites, and intentional crawler restrictions as defects.
+- **Coverage Transparency:** Clearly identifies checks that could not be performed instead of assuming they passed or failed.
+- **No External Dependencies:** Uses Python 3.9+ standard library without requiring API keys or LLM calls.
+
+## 🔍 How It Works
+
+The project follows an eight-stage discovery funnel:
+
+```text
+Exists
+  ↓
+Discovered
+  ↓
+Accessible
+  ↓
+Readable
+  ↓
+Understood
+  ↓
+Retrieved
+  ↓
+Selected
+  ↓
+Cited
 ```
-Exists → discovered → accessible → readable → understood → retrieved → selected → cited
+
+Each stage represents a different requirement for AI-powered website discovery.
+
+### System Architecture
+
+```text
+              PUBLIC WEBSITE
+                    |
+                    v
+          Site Snapshot Collector
+                    |
+                    v
+              snapshot.json
+                    |
+          +---------+---------+
+          |         |         |
+          v         v         v
+       Crawl     Render    Structured
+       Access   Readability   Data
+          |         |         |
+          +---------+---------+
+                    |
+          +---------+---------+
+          |         |         |
+          v         v         v
+       Answer    Freshness  Engagement
+      Retrieval  & Corrob.    Audit
+          |         |         |
+          +---------+---------+
+                    |
+                    v
+       Opportunity & Monitoring
+                    |
+                    v
+          Merge and Deduplicate
+                    |
+                    v
+         Severity & Prioritization
+                    |
+                    v
+             Final Reports
+             report.md
+             report.json
 ```
 
-### Architecture
+The Site Snapshot Collector is the only component that accesses the network. All other skills analyze the same frozen evidence snapshot.
 
-```
-                     WEBSITE
-                        │
-                        ▼
-            site-snapshot-collector          ← the only step that touches the network
-                        │
-                        ▼
-                  snapshot.json              (frozen evidence: robots, sitemap, pages,
-                        │                     raw HTML + rendered DOM, structured data)
-       ┌────────┬───────┼────────┬────────┬────────┐
-       ▼        ▼       ▼        ▼        ▼        ▼
-     crawl   render  structured answer freshness engagement     six detectors, each
-     access  readab.  data /    retriev. corrob.   audit         reads the same snapshot
-       │        │     entity     │        │        │
-       └────────┴───────┬────────┴────────┴────────┘
-                        ▼
-            opportunity-and-monitoring       cross-detector opportunities (max 8)
-                        │
-                        ▼
-      merge → dedupe → severity → priority → validate
-                        │
-                        ▼
-              report.json  +  report.md
-```
+## 🧩 Agent Skills
 
-### The skills
+The marketplace contains nine Agent Skills, including one entrypoint and eight supporting skills.
 
-| Skill | Gate | What it checks |
-|---|---|---|
-| `brand-ai-readiness-audit` *(entrypoint)* | — | Plans the audit, dispatches every skill below, merges and deduplicates findings, applies severity and priority, emits the report. Owns no checks itself. |
-| `site-snapshot-collector` | — | **The only skill that touches the network.** Parses `robots.txt`, discovers and samples URLs, fetches each page as a crawler and (optionally) as a browser, plus a control fetch that exposes user-agent blocking. Emits `snapshot.json`. |
-| `crawl-access-audit` | discovered, accessible | Robots policy per crawler role, `noindex`, sitemap health, redirects, canonicals, user-agent blocking. |
-| `render-readability-audit` | readable | Raw-HTML vs. rendered-DOM gaps, facts locked in images/PDFs, content behind interaction, interstitials. |
-| `structured-data-entity-audit` | understood | Structured-data validity and coverage, structured-vs-visible contradictions, organization identity, `sameAs`. |
-| `answer-retrievability-audit` | retrieved, selected | Whether a machine can locate and quote the exact fact a question asks for: answer position, specs, units, entity naming. |
-| `freshness-corroboration-audit` | selected | Intra-site contradictions (e.g. price by SKU), date-signal integrity, stale content, availability signals. |
-| `engagement-audit` | post-discovery | Whether a visitor who found something useful can follow a next step: dead ends, orphan pages, missing action paths. |
-| `opportunity-and-monitoring` | — | Relationships *between* findings: compound opportunities, template leverage, monitoring and measurement plan. Capped at 8. |
+| Agent Skill | Responsibility |
+|---|---|
+| `brand-ai-readiness-audit` | Main entrypoint that coordinates the complete audit. |
+| `site-snapshot-collector` | Collects website pages, robots.txt, sitemaps, HTML, and rendered DOM. |
+| `crawl-access-audit` | Checks crawler permissions, indexing directives, redirects, and canonicals. |
+| `render-readability-audit` | Identifies content hidden behind JavaScript, images, PDFs, and interactions. |
+| `structured-data-entity-audit` | Validates structured data, organization identity, and entity information. |
+| `answer-retrievability-audit` | Evaluates whether AI systems can locate and extract specific answers. |
+| `freshness-corroboration-audit` | Detects outdated information, contradictions, and inconsistent data. |
+| `engagement-audit` | Examines navigation, dead ends, and missing user action paths. |
+| `opportunity-and-monitoring` | Identifies combined improvement opportunities and monitoring strategies. |
 
-Severity is derived from `gate_impact × reach × certainty`, with caps that stop
-low-certainty findings from being overclaimed.
+Findings are evaluated using:
 
----
+`Severity = Gate Impact × Reach × Certainty`
 
-## Quick Start
+Additional caps prevent low-confidence observations from becoming exaggerated findings.
+
+## 🛠️ Tech Stack
+
+| Technology | Purpose |
+|---|---|
+| Python 3.9+ | Core implementation |
+| HTML Parsing | Website content extraction |
+| JSON | Evidence snapshots and structured reports |
+| Markdown | Human-readable audit reports |
+| Playwright (Optional) | JavaScript-rendered DOM analysis |
+| Python Standard Library | Core execution without external dependencies |
+
+## ⚙️ Getting Started
 
 ### Prerequisites
 
-- **Python 3.9+** — nothing to `pip install`.
-- *Optional:* a headless browser for the rendered-DOM half of the render checks:
-  `pip install playwright && playwright install chromium`. Without it the audit still
-  runs on raw HTML and says so in the report.
+- Python 3.9 or later.
+- Git.
+- Optional: Playwright and Chromium for rendered-DOM analysis.
 
-### Run an audit
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/psp2535/AdobeUniversityHackathon26.git
+```
+
+### 2. Navigate to the Project
+
+```bash
 cd AdobeUniversityHackathon26/brand-ai-readiness-audit
+```
+
+### 3. Run an Audit
+
+```bash
 python audit.py https://example.com
 ```
 
-It writes three files to `audit-output/`:
+Replace `https://example.com` with the public website you want to audit.
 
-| File | What it is |
-|---|---|
-| `report.md` | The human-readable report — **read this** |
-| `report.json` | The same data, schema-validated |
-| `snapshot.json` | The raw evidence every finding was derived from |
+### 4. Optional: Enable Browser Rendering
 
-Useful options:
-
-| Option | Default | What it does |
-|---|---|---|
-| `--out DIR` | `audit-output` | Where to write the output |
-| `--max-pages N` | 25 (cap 40) | How many pages to sample |
-| `--render auto\|on\|off` | `auto` | Use a headless browser for JavaScript-rendered content; `auto` uses one only if installed |
-| `--time-budget N` | 150 | Seconds allowed for fetching |
-| `--user-agent-contact STR` | — | Contact string added to the user agent; polite on sites you don't own |
-| `--keep-going` | off | Finish with a partial report if one detector fails |
-| `--quiet` | off | Print only the summary |
-
-For a short `SUMMARY.md` next to the report, run
-`python tools/run_audit_with_summary.py https://example.com` instead.
-
-### Run it through an AI agent
-
-The marketplace is designed to be driven by a general agent harness (e.g. Claude Code).
-Start the agent inside `brand-ai-readiness-audit/` and prompt:
-
-> Read `skills/brand-ai-readiness-audit/SKILL.md` and follow it as the marketplace
-> entrypoint. Audit https://example.com and write the report to `./audit-output`. Do not
-> invent findings: anything you cannot verify goes in `coverage.not_assessed`.
-
-`audit.py` runs exactly the same sequence of scripts the entrypoint skill tells an agent
-to follow — it contains no audit logic of its own.
-
-### Try it without a live site
-
-The 35 test fixtures are small websites served on localhost, so the whole pipeline runs
-offline:
+To analyze JavaScript-rendered content, install Playwright:
 
 ```bash
-cd brand-ai-readiness-audit
-python tests/fixture_server.py --dir tests/fixtures/F07-stale-conflict   # terminal 1
-python audit.py http://localhost:8099 --render off                       # terminal 2
+pip install playwright
+playwright install chromium
 ```
 
-Or just read a complete, checked-in run:
-[dry-runs/books-toscrape/report.md](dry-runs/books-toscrape/report.md).
+Without Playwright, the audit still runs using raw HTML and reports the rendering checks that could not be assessed.
 
----
+## 📊 Audit Results
 
-## Sample output
+After execution, the project generates three files inside `audit-output/`.
 
-From the checked-in audit of books.toscrape.com:
+| Output File | Description |
+|---|---|
+| `report.md` | Human-readable audit report with findings and recommendations. |
+| `report.json` | Structured, schema-validated audit results. |
+| `snapshot.json` | Raw evidence collected from the website. |
 
+The Markdown report includes:
+
+- Identified issues and their severity.
+- Example URLs and supporting evidence.
+- Recommended corrective actions.
+- Priority and estimated implementation effort.
+- Suggested ownership.
+- Verification steps to confirm improvements.
+
+### Sample Audit Results
+
+Example results from the checked-in Books to Scrape audit:
+
+| Severity | Findings |
+|---|---:|
+| Critical | 0 |
+| High | 2 |
+| Medium | 6 |
+| Low | 2 |
+
+**Top recommended improvements:**
+
+1. Publish a `robots.txt` file with an explicit crawler policy and sitemap reference.
+2. Provide a sitemap containing accurate `lastmod` values.
+3. Add an Organization JSON-LD node to the homepage with a stable identifier.
+
+## 🤖 Running Through an AI Agent
+
+The project can also be executed through an AI agent harness such as Claude Code.
+
+Start the agent inside the `brand-ai-readiness-audit/` directory and provide the following instruction:
+
+```text
+Read skills/brand-ai-readiness-audit/SKILL.md
+and follow it as the marketplace entrypoint.
+
+Audit https://example.com and write the report
+to ./audit-output.
+
+Do not invent findings. Anything you cannot
+verify must be listed under coverage.not_assessed.
 ```
-| Severity | Count |
-| Critical | 0     |
-| High     | 2     |
-| Medium   | 6     |
-| Low      | 2     |
 
-Do these first
-1. Publish a robots.txt that declares the sitemap and states an explicit policy
-   for training and retrieval crawlers.                 (engineering · trivial)
-2. Publish a sitemap with accurate lastmod values.      (engineering · config)
-3. Add one Organization node to the homepage, in JSON-LD, with a stable
-   identifier.                                          (engineering · template-change)
+The `audit.py` CLI executes the same sequence of scripts defined by the entrypoint skill.
+
+## 🧪 Testing
+
+The project includes 35 website fixtures and an automated test harness.
+
+Run the marketplace validation:
+
+```bash
+python tools/validate_marketplace.py --root . --strict
 ```
 
-Every finding in the full report states what was observed (with example URLs), why it
-matters, what to do, its priority, effort and owner, and how to check the fix worked.
+Run the test suite:
 
----
-
-## Project structure
-
+```bash
+python tests/run_tests.py
 ```
+
+The tests cover:
+
+- Scoring and severity calculations.
+- Report schema validation.
+- Deterministic execution.
+- Website discovery and crawling.
+- Negative controls for valid website configurations.
+
+## 📁 Project Structure
+
+```text
 AdobeUniversityHackathon26/
-├── brand-ai-readiness-audit/          the Agent Skill marketplace   → brand-ai-readiness-audit/README.md
-│   ├── marketplace.json                 manifest: 9 skills, 1 entrypoint
-│   ├── audit.py                         CLI: runs the full audit pipeline
-│   ├── skills/                          the 9 Agent Skills, each with its own SKILL.md + scripts
-│   ├── tests/                           35 fixture sites, expectations, fixture server, test harness
-│   └── tools/                           marketplace validator, summary generator
-├── dry-runs/books-toscrape/           a complete example audit (report, findings, snapshot)
-└── Backend-Architecture.pdf           architecture overview
+│
+├── brand-ai-readiness-audit/
+│   │
+│   ├── marketplace.json
+│   ├── audit.py
+│   │
+│   ├── skills/
+│   │   ├── brand-ai-readiness-audit/
+│   │   ├── site-snapshot-collector/
+│   │   ├── crawl-access-audit/
+│   │   ├── render-readability-audit/
+│   │   ├── structured-data-entity-audit/
+│   │   ├── answer-retrievability-audit/
+│   │   ├── freshness-corroboration-audit/
+│   │   ├── engagement-audit/
+│   │   └── opportunity-and-monitoring/
+│   │
+│   ├── tests/
+│   │   ├── fixtures/
+│   │   ├── fixture_server.py
+│   │   └── run_tests.py
+│   │
+│   └── tools/
+│       ├── validate_marketplace.py
+│       └── run_audit_with_summary.py
+│
+├── dry-runs/
+│   └── books-toscrape/
+│       └── report.md
+│
+└── Backend-Architecture.pdf
 ```
 
----
+## 🔒 Design Principles
 
-## Testing
+1. **Evidence or Silence:** No concrete URL and observed value means no finding.
+2. **Read-Only Execution:** The audited website is never modified.
+3. **Capability-Based Validation:** Unavailable checks are marked as not assessed.
+4. **No Fabricated Results:** Findings must be supported by collected evidence.
+5. **Honest Recommendations:** Improving AI discoverability does not guarantee that an AI assistant will cite a website.
+6. **No Commercial Bias:** Recommendations focus entirely on technical and editorial improvements.
 
-```bash
-cd brand-ai-readiness-audit
-python tools/validate_marketplace.py --root . --strict   # Agent Skills spec conformance
-python tests/run_tests.py                                 # 8 layers, 35 fixtures: scoring, determinism, schema
-```
+## ⚠️ Limitations
 
-Several fixtures are **negative controls** whose target is zero findings above `info`: a
-clean site, a training-only crawler block, a non-English site, a two-page site, a
-Microdata-only site, and correctly noindexed utility pages.
+- A maximum of 40 pages are sampled per audit, so large websites are not exhaustively analyzed.
+- Rendered-DOM checks require Playwright and Chromium.
+- Freshness checks compare information within the website itself and do not perform external corroboration.
+- Some checks depend on supported language detection.
 
----
+## 👥 Team
 
-## Troubleshooting
+Built by a team of three for the **Adobe University Hackathon 2026**.
 
-| Problem | Fix |
-|---|---|
-| `python: command not found` | Use `python3`, or the `py` launcher on Windows. |
-| `audit.py` produces 0 findings | That can be a genuinely clean result — check the report's coverage section for what was actually assessed. |
-| Render checks listed under `coverage.not_assessed` | No headless browser is installed. Install Playwright + Chromium (see Prerequisites); the rest of the audit is unaffected. |
-| Exit code `1` | The audit could not be completed (e.g. the site was unreachable). Exit code `2` means bad arguments. |
-
----
-
-## Design principles
-
-- **Evidence-or-silence.** No concrete URL and observed value, no finding.
-- **Capability gating, not fabrication.** A check that couldn't run is reported as
-  not assessed — the absence of our headless browser is never a defect in someone's site.
-- **No technique guarantees citation.** Structured data and server-side rendering raise
-  eligibility; the report never promises an assistant will cite you.
-- **Nothing commercial.** No paid placement, sponsorships or retainers — technical and
-  editorial levers only.
-
-## Limitations
-
-- Samples up to 40 pages per run, so very large sites are audited by template sample,
-  not exhaustively.
-- Rendered-DOM checks need Playwright + Chromium; without them those checks are reported
-  as not assessed.
-- Freshness checks compare the site only against itself — no off-site corroboration.
-- Some checks run only where the page language is detected and supported; structural
-  checks run everywhere.The next step can be expanding language support.
-
-## Team
-
-| Name | GitHub | LinkedIn |
+| Team Member | GitHub | LinkedIn |
 |---|---|---|
-| Pathange Sai Pranav | [@psp2535](https://github.com/psp2535) | [pathangesaipranav](https://www.linkedin.com/in/pathangesaipranav/) |
-| Chakali Surendra | [@suri5790](https://github.com/suri5790) | [surendrachakali](https://www.linkedin.com/in/surendrachakali/) |
-| Duppala Satwik | [@Satwik2529](https://github.com/Satwik2529) | [satwik2529dsk](https://www.linkedin.com/in/satwik2529dsk/) |
+| Pathange Sai Pranav | [@psp2535](https://github.com/psp2535) | [LinkedIn](https://www.linkedin.com/in/pathangesaipranav/) |
+| Chakali Surendra | [@suri5790](https://github.com/suri5790) | [LinkedIn](https://www.linkedin.com/in/surendrachakali/) |
+| Duppala Satwik | [@Satwik2529](https://github.com/Satwik2529) | [LinkedIn](https://www.linkedin.com/in/satwik2529dsk/) |
+| Gedela Sasidhar Chakrapani | [@Sasidhar1906](https://github.com/Sasidhar1906) | [LinkedIn](https://www.linkedin.com/in/sasidhar1906/) |
 
-## License
+## 📄 License
 
-Apache License 2.0 — see [`brand-ai-readiness-audit/LICENSE`](brand-ai-readiness-audit/LICENSE).
+This project is licensed under the **Apache License 2.0**.
+
+See [`brand-ai-readiness-audit/LICENSE`](brand-ai-readiness-audit/LICENSE) for details.
+
+---
+
+**Built for a future where websites need to be discoverable not just by search engines, but by AI assistants too.**
